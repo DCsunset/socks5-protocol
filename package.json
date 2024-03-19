@@ -1,0 +1,39 @@
+{
+  "name": "socks5-protocol",
+  "version": "0.1.0",
+  "description": "A Node.js library (in TypeScript and ESM) to encode/decode messages in SOCKS5 protocol.",
+  "main": "dist/lib.js",
+  "types": "dist/lib.d.ts",
+  "files": [
+    "package*.json",
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DCsunset/socks5-protocol.git"
+  },
+  "keywords": [
+    "socks5",
+    "network",
+    "node",
+    "protocol",
+    "typescript"
+  ],
+  "author": "DCsunset",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/DCsunset/socks5-protocol/issues"
+  },
+  "homepage": "https://github.com/DCsunset/socks5-protocol",
+  "devDependencies": {
+    "@types/ip": "^1.1.3",
+    "typescript": "^5.4.2"
+  },
+  "dependencies": {
+    "ip": "^2.0.1"
+  }
+}
