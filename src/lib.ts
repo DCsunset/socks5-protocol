@@ -19,6 +19,12 @@ import ip from "ip";
 
 const SOCKS_VERSION = 0x05;
 
+export class SocksError extends Error {
+  constructor(msg: string) {
+    super(msg);
+  }
+}
+
 // Auth
 
 export enum AuthMethod {
@@ -31,14 +37,13 @@ export enum AuthMethod {
 export type AuthReq = {
   methods: number[];
 }
-export function decodeAuthReq(data: Buffer): AuthReq | undefined {
+export function decodeAuthReq(data: Buffer): AuthReq {
   if (
     data.length < 3
       || data[0] !== SOCKS_VERSION
-      || data[1] === 0
       || data.length !== data[1] + 2
   ) {
-    return undefined;
+    throw new SocksError("Invalid AuthReq message");
   }
   return { methods: [...data.subarray(2)] };
 }
@@ -70,38 +75,38 @@ export function dummySocksAddr() {
   };
 };
 
-export function decodeSocksAddr(data: Buffer): SocksAddr | undefined {
+export function decodeSocksAddr(data: Buffer): SocksAddr {
   if (data.length < 2) {
-    return undefined;
+    throw new SocksError("Invalid length for SocksAddr");
   }
   const type = data[0];
   let addr: string;
   switch (type) {
     case SocksAddrType.IPv4:
       if (data.length !== 5) {
-        return undefined;
+        throw new SocksError("Invalid length for SocksAddr");
       }
       addr = ip.toString(data, 1);
       break;
     case SocksAddrType.IPv6:
       if (data.length !== 17) {
-        return undefined;
+        throw new SocksError("Invalid length for SocksAddr");
       }
       addr = ip.toString(data, 1);
       break;
     case SocksAddrType.Domain:
       const len = data[1];
       if (len + 2 !== data.length) {
-        return undefined;
+        throw new SocksError("Invalid length for SocksAddr");
       }
       addr = data.subarray(2).toString();
       break;
     default:
-      return undefined;
+      throw new SocksError(`Invalid type for SocksAddr: ${type}`);
   }
   return { type, addr };
 }
-export function encodeSocksAddr({ type, addr }: SocksAddr) {
+export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
   let addrBuf: Buffer;
   switch (type) {
     case SocksAddrType.IPv4:
@@ -112,7 +117,7 @@ export function encodeSocksAddr({ type, addr }: SocksAddr) {
       addrBuf = Buffer.from(addr);
       break;
     default:
-      throw new Error(`Invalid SocksAddrType: ${type}`);
+      throw new SocksError(`Invalid SocksAddrType: ${type}`);
   }
   return Buffer.concat([
     Buffer.from([type]),
@@ -133,21 +138,18 @@ export type ConnReq = {
   dstAddr: SocksAddr,
   dstPort: number
 }
-export function decodeConnReq(data: Buffer): ConnReq | undefined {
+export function decodeConnReq(data: Buffer): ConnReq {
   if (
     data.length < 5 + 2
       || data[0] !== SOCKS_VERSION
       || !(data[1] in ConnCmd)
       || data[2] !== 0x00
   ) {
-    return undefined;
+    throw new SocksError("Invalid ConnReq");
   }
 
   const cmd = data[1];
   const dstAddr = decodeSocksAddr(data.subarray(3, data.length - 2));
-  if (!dstAddr) {
-    return undefined;
-  }
   const dstPort = data.readInt16BE(data.length - 2);
 
   return {
