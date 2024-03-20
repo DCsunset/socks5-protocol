@@ -1,5 +1,8 @@
 # socks5-protocol
 
+[![NPM Version](https://img.shields.io/npm/v/socks5-protocol)](https://www.npmjs.com/package/socks5-protocol)
+[![GitHub License](https://img.shields.io/github/license/DCsunset/socks5-protocol)](https://github.com/DCsunset/socks5-protocol)
+
 A Node.js library (in TypeScript and ESM) to encode/decode messages in SOCKS5 protocol.
 
 
