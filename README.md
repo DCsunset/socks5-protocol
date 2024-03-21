@@ -13,12 +13,6 @@ npm i socks5-protocol
 ```
 
 
-## TODO
-
-- [ ] Add UDP message
-- [ ] Add more functions for client-side use
-
-
 ## Usage
 
 The naming of message types mostly follows the [RFC 1928](https://www.rfc-editor.org/rfc/rfc1928).
@@ -29,6 +23,10 @@ Here a list of implemented messages:
 - `AuthResp`: Server's response to `AuthReq`
 - `ConnReq`: The message from client to request a connection, binding, or association
 - `ConnResp`: Server's response to `ConnReq`
+- `UdpReq`: Message for UDP communication between server and client
+
+All the above message types have corresponding encoding and decoding functions.
+A `SockError` will be thrown when encoding/decoding fails.
 
 
 ## License
