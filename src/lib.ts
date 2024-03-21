@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import ip from "ip";
+import ipaddr from "ipaddr.js";
 
 const SOCKS_VERSION = 0x05;
 
@@ -99,13 +99,20 @@ export type SocksAddr = {
   addr: string
 }
 
-// Create a minimum dummy socks addr
-export function dummySocksAddr() {
-  return {
-    type: SocksAddrType.Domain,
-    addr: ""
-  };
-};
+/// Create SocksAddr from string
+export function newSocksAddr(addr: string): SocksAddr {
+  let type: SocksAddrType;
+  if (ipaddr.IPv4.isValidFourPartDecimal(addr)) {
+    type = SocksAddrType.IPv4;
+  }
+  else if (ipaddr.IPv6.isValid(addr)) {
+    type = SocksAddrType.IPv6;
+  }
+  else {
+    type = SocksAddrType.Domain;
+  }
+  return { type, addr };
+}
 
 export function sizeofSocksAddr({ type, addr }: SocksAddr): number {
   switch (type) {
@@ -136,8 +143,10 @@ export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
   let addrBuf: Buffer;
   switch (type) {
     case SocksAddrType.IPv4:
+      addrBuf = Buffer.from(ipaddr.IPv4.parse(addr).toByteArray());
+      break;
     case SocksAddrType.IPv6:
-      addrBuf = ip.toBuffer(addr);
+      addrBuf = Buffer.from(ipaddr.IPv6.parse(addr).toByteArray());
       break;
     case SocksAddrType.Domain:
       addrBuf = Buffer.from(addr);
@@ -167,13 +176,13 @@ export function decodeSocksAddr(buf: Buffer, offset = 0): SocksAddr {
       if (buf.length < offset + 5) {
         throw new SocksError("Invalid SocksAddr buffer");
       }
-      addr = ip.toString(buf, offset + 1);
+      addr = ipaddr.fromByteArray([...buf.subarray(offset + 1, offset + 5)]).toString();
       break;
     case SocksAddrType.IPv6:
       if (buf.length < offset + 17) {
         throw new SocksError("Invalid length for SocksAddr");
       }
-      addr = ip.toString(buf, offset + 1);
+      addr = ipaddr.fromByteArray([...buf.subarray(offset + 1, offset + 17)]).toString();
       break;
     case SocksAddrType.Domain:
       const len = buf[1];
@@ -278,7 +287,7 @@ export function encodeConnResp(resp: ConnResp): Buffer {
   let bndPort: number;
   if (resp.status !== ConnStatus.SUCCESS) {
     // Contruct minimum dummy address
-    bndAddr = dummySocksAddr();
+    bndAddr = newSocksAddr("");
     bndPort = 0;
   }
   else {
