@@ -15,9 +15,14 @@
  * limitations under the License.
  */
 
-import ip from "ip";
+import { stat } from "fs";
+import ip, { isV4Format } from "ip";
 
 const SOCKS_VERSION = 0x05;
+
+export function isValidUInt(num: number, max: number): boolean {
+  return Number.isInteger(num) && num >= 0 && num <= max;
+}
 
 export class SocksError extends Error {
   constructor(msg: string) {
@@ -37,6 +42,7 @@ export enum AuthMethod {
 export type AuthReq = {
   methods: number[];
 }
+
 export function encodeAuthReq({ methods }: AuthReq): Buffer {
   if (methods.length > 0xff) {
     throw new SocksError("Invalid length for AuthReq");
@@ -47,31 +53,37 @@ export function encodeAuthReq({ methods }: AuthReq): Buffer {
     ...methods
   ]);
 }
-export function decodeAuthReq(data: Buffer): AuthReq {
+
+export function decodeAuthReq(buf: Buffer): AuthReq {
   if (
-    data.length < 3
-      || data[0] !== SOCKS_VERSION
-      || data.length !== data[1] + 2
+    buf.length < 3
+      || buf[0] !== SOCKS_VERSION
+      || buf.length !== buf[1] + 2
   ) {
     throw new SocksError("Invalid AuthReq");
   }
-  return { methods: [...data.subarray(2)] };
+  return { methods: [...buf.subarray(2)] };
 }
 
 export type AuthResp = {
   method: number;
 }
+
 export function encodeAuthResp({ method }: AuthResp): Buffer {
+  if (!isValidUInt(method, 0xff)) {
+    throw new SocksError("Invalid AuthResp");
+  }
   return Buffer.from([SOCKS_VERSION, method]);
 }
-export function decodeAuthResp(data: Buffer): AuthResp {
+
+export function decodeAuthResp(buf: Buffer): AuthResp {
   if (
-    data.length !== 2
-      || data[0] !== SOCKS_VERSION
+    buf.length !== 2
+      || buf[0] !== SOCKS_VERSION
   ) {
     throw new SocksError("Invalid AuthResp");
   }
-  return { method: data[1] };
+  return { method: buf[1] };
 }
 
 
@@ -82,10 +94,12 @@ export enum SocksAddrType {
   Domain = 0x03,
   IPv6 = 0x04
 }
+
 export type SocksAddr = {
   type: SocksAddrType,
   addr: string
 }
+
 // Create a minimum dummy socks addr
 export function dummySocksAddr() {
   return {
@@ -93,6 +107,32 @@ export function dummySocksAddr() {
     addr: ""
   };
 };
+
+export function sizeofSocksAddr({ type, addr }: SocksAddr): number {
+  switch (type) {
+    case SocksAddrType.IPv4:
+      return 1 + 4;
+    case SocksAddrType.IPv6:
+      return 1 + 16;
+    case SocksAddrType.Domain:
+      if (addr.length > 0xff) {
+        throw new SocksError("Invalid domain for SocksAddr: length is too long");
+      }
+      return 1 + 1 + addr.length;
+    default:
+      throw new SocksError(`Invalid type for SocksAddr: ${type}`);
+  }
+}
+
+export function encodePort(port: number): Buffer {
+  if (!isValidUInt(port, 0xffff)) {
+    throw new SocksError(`Invalid port: ${port}`);
+  }
+  const portBuf = Buffer.allocUnsafe(2);
+  portBuf.writeUint16BE(port);
+  return portBuf;
+}
+
 export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
   let addrBuf: Buffer;
   switch (type) {
@@ -104,41 +144,43 @@ export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
       addrBuf = Buffer.from(addr);
       break;
     default:
-      throw new SocksError(`Invalid SocksAddrType: ${type}`);
+      throw new SocksError(`Invalid type for SocksAddr: ${type}`);
   }
   return Buffer.concat([
     Buffer.from([type]),
     addrBuf
   ]);
 }
-export function decodeSocksAddr(data: Buffer): SocksAddr {
-  if (data.length < 2) {
-    throw new SocksError("Invalid length for SocksAddr");
+
+/// Note: extra buffer won't be consumed
+export function decodeSocksAddr(buf: Buffer): SocksAddr {
+  if (buf.length < 2) {
+    throw new SocksError("Invalid SocksAddr buffer");
   }
-  const type = data[0];
+  const type = buf[0];
   let addr: string;
   switch (type) {
     case SocksAddrType.IPv4:
-      if (data.length !== 5) {
-        throw new SocksError("Invalid length for SocksAddr");
+      if (buf.length < 5) {
+        throw new SocksError("Invalid SocksAddr buffer");
       }
-      addr = ip.toString(data, 1);
+      addr = ip.toString(buf, 1);
       break;
     case SocksAddrType.IPv6:
-      if (data.length !== 17) {
+      if (buf.length < 17) {
         throw new SocksError("Invalid length for SocksAddr");
       }
-      addr = ip.toString(data, 1);
+      addr = ip.toString(buf, 1);
       break;
     case SocksAddrType.Domain:
-      const len = data[1];
-      if (len + 2 !== data.length) {
-        throw new SocksError("Invalid length for SocksAddr");
+      const len = buf[1];
+      if (buf.length < len + 2) {
+        throw new SocksError("Invalid SocksAddr buffer");
       }
-      addr = data.subarray(2).toString();
+      addr = buf.subarray(2, len + 2).toString();
       break;
     default:
-      throw new SocksError(`Invalid type for SocksAddr: ${type}`);
+      throw new SocksError(`Invalid type for SocksAddr buffer: ${type}`);
   }
   return { type, addr };
 }
@@ -151,21 +193,17 @@ export enum ConnCmd {
   TCP_BIND = 0x02,
   UDP_ASSOC = 0x03
 }
+
 export type ConnReq = {
   cmd: ConnCmd,
   dstAddr: SocksAddr,
   dstPort: number
 }
+
 export function encodeConnReq({ cmd, dstAddr, dstPort }: ConnReq): Buffer {
-  if (
-    !(cmd in ConnCmd)
-      || dstPort < 0
-      || dstPort > 0xffff
-  ) {
+  if (!(cmd in ConnCmd)) {
     throw new SocksError("Invalid ConnReq");
   }
-  const dstPortBuf = Buffer.allocUnsafe(2);
-  dstPortBuf.writeUInt16BE(dstPort);
   return Buffer.concat([
     Buffer.from([
       SOCKS_VERSION,
@@ -173,22 +211,23 @@ export function encodeConnReq({ cmd, dstAddr, dstPort }: ConnReq): Buffer {
       0x00
     ]),
     encodeSocksAddr(dstAddr),
-    dstPortBuf
+    encodePort(dstPort)
   ]);
 }
-export function decodeConnReq(data: Buffer): ConnReq {
+
+export function decodeConnReq(buf: Buffer): ConnReq {
   if (
-    data.length < 5 + 2
-      || data[0] !== SOCKS_VERSION
-      || !(data[1] in ConnCmd)
-      || data[2] !== 0x00
+    buf.length < 5 + 2
+      || buf[0] !== SOCKS_VERSION
+      || !(buf[1] in ConnCmd)
+      || buf[2] !== 0x00
   ) {
-    throw new SocksError("Invalid ConnReq");
+    throw new SocksError("Invalid ConnReq buffer");
   }
 
-  const cmd = data[1];
-  const dstAddr = decodeSocksAddr(data.subarray(3, data.length - 2));
-  const dstPort = data.readUInt16BE(data.length - 2);
+  const cmd = buf[1];
+  const dstAddr = decodeSocksAddr(buf.subarray(3, buf.length - 2));
+  const dstPort = buf.readUInt16BE(buf.length - 2);
 
   return {
     cmd,
@@ -208,6 +247,7 @@ export enum ConnStatus {
   UNSUPPORTED = 0x07,
   ADDR_INVALID = 0x08
 };
+
 export type ConnResp = {
   status: ConnStatus.SUCCESS,
   bndAddr: SocksAddr,
@@ -215,8 +255,13 @@ export type ConnResp = {
 } | {
   status: Exclude<ConnStatus, ConnStatus.SUCCESS>
 };
+
 export function encodeConnResp(resp: ConnResp): Buffer {
   const { status } = resp;
+  if (!isValidUInt(status, 0xff)) {
+    throw new SocksError("Invalid ConnResp");
+  }
+
   let bndAddr: SocksAddr;
   let bndPort: number;
   if (resp.status !== ConnStatus.SUCCESS) {
@@ -228,31 +273,81 @@ export function encodeConnResp(resp: ConnResp): Buffer {
     ({ bndAddr, bndPort } = resp);
   }
 
-  const addrBuf = encodeSocksAddr(bndAddr);
-  const portBuf = Buffer.allocUnsafe(2);
-  portBuf.writeUint16BE(bndPort)
   return Buffer.concat([
     Buffer.from([ SOCKS_VERSION, status, 0x00 ]),
-    addrBuf,
-    portBuf
+    encodeSocksAddr(bndAddr),
+    encodePort(bndPort)
   ]);
 }
-export function decodeConnResp(data: Buffer): ConnResp {
+
+export function decodeConnResp(buf: Buffer): ConnResp {
   if (
-    data.length < 5 + 2
-      || data[0] !== SOCKS_VERSION
-      || data[2] !== 0x00
+    buf.length < 5 + 2
+      || buf[0] !== SOCKS_VERSION
+      || buf[2] !== 0x00
   ) {
-    throw new SocksError("Invalid ConnResp");
+    throw new SocksError("Invalid ConnResp buffer");
   }
 
-  const status = data[1];
-  const bndAddr = decodeSocksAddr(data.subarray(3, data.length - 2));
-  const bndPort = data.readUInt16BE(data.length - 2);
+  const status = buf[1];
+  const bndAddr = decodeSocksAddr(buf.subarray(3, buf.length - 2));
+  const bndPort = buf.readUInt16BE(buf.length - 2);
 
   return {
     status,
     bndAddr,
     bndPort
+  };
+}
+
+
+// UDP request with header
+
+export type UdpReq = {
+  frag: number,
+  dstAddr: SocksAddr,
+  dstPort: number,
+  data: Buffer
+}
+
+export function encodeUdpReq({ frag, dstAddr, dstPort, data }: UdpReq): Buffer {
+  if (!isValidUInt(frag, 0xff)) {
+    throw new SocksError("Invalid UdpReq buffer");
+  }
+  return Buffer.concat([
+    Buffer.from([
+      0x00,
+      0x00,
+      frag
+    ]),
+    encodeSocksAddr(dstAddr),
+    encodePort(dstPort),
+    data
+  ])
+}
+
+export function decodeUdpReq(buf: Buffer): UdpReq {
+  if (
+    buf.length < 3 + 2 + 2
+    || buf[0] !== 0x00
+    || buf[1] !== 0x00
+  ) {
+    throw new SocksError("Invalid UdpReq");
+  }
+
+  const frag = buf[2];
+  const dstAddr = decodeSocksAddr(buf.subarray(3));
+  const dstAddrSize = sizeofSocksAddr(dstAddr);
+  if (buf.length < 3 + dstAddrSize + 2) {
+    throw new SocksError("Invalid UdpReq buffer");
+  }
+  const dstPort = buf.readUInt16BE(3 + dstAddrSize);
+  const data = buf.subarray(3 + dstAddrSize + 2);
+
+  return {
+    frag,
+    dstAddr,
+    dstPort,
+    data
   };
 }
