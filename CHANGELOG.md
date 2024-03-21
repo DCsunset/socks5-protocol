@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.1](https://github.com/DCsunset/socks5-protocol/compare/v0.2.0...v0.2.1) (2024-03-21)
+
+
+### Features
+
+* switch to ipaddr.js lib and add newSocksAddr function ([49eecaa](https://github.com/DCsunset/socks5-protocol/commit/49eecaa08b5254afcfe378aa7948303134ea13df))
+
+
+### Misc
+
+* update readme ([1e8018e](https://github.com/DCsunset/socks5-protocol/commit/1e8018ec0f7f8ab28f1f52f86a02e4ff2fdbef38))
+
 ## [0.2.0](https://github.com/DCsunset/socks5-protocol/compare/v0.1.0...v0.2.0) (2024-03-21)
 
 
