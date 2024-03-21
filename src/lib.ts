@@ -37,13 +37,23 @@ export enum AuthMethod {
 export type AuthReq = {
   methods: number[];
 }
+export function encodeAuthReq({ methods }: AuthReq): Buffer {
+  if (methods.length > 0xff) {
+    throw new SocksError("Invalid length for AuthReq");
+  }
+  return Buffer.from([
+    SOCKS_VERSION,
+    methods.length,
+    ...methods
+  ]);
+}
 export function decodeAuthReq(data: Buffer): AuthReq {
   if (
     data.length < 3
       || data[0] !== SOCKS_VERSION
       || data.length !== data[1] + 2
   ) {
-    throw new SocksError("Invalid AuthReq message");
+    throw new SocksError("Invalid AuthReq");
   }
   return { methods: [...data.subarray(2)] };
 }
@@ -51,8 +61,17 @@ export function decodeAuthReq(data: Buffer): AuthReq {
 export type AuthResp = {
   method: number;
 }
-export function encodeAuthResp({ method }: AuthResp) {
+export function encodeAuthResp({ method }: AuthResp): Buffer {
   return Buffer.from([SOCKS_VERSION, method]);
+}
+export function decodeAuthResp(data: Buffer): AuthResp {
+  if (
+    data.length !== 2
+      || data[0] !== SOCKS_VERSION
+  ) {
+    throw new SocksError("Invalid AuthResp");
+  }
+  return { method: data[1] };
 }
 
 
@@ -74,7 +93,24 @@ export function dummySocksAddr() {
     addr: ""
   };
 };
-
+export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
+  let addrBuf: Buffer;
+  switch (type) {
+    case SocksAddrType.IPv4:
+    case SocksAddrType.IPv6:
+      addrBuf = ip.toBuffer(addr);
+      break;
+    case SocksAddrType.Domain:
+      addrBuf = Buffer.from(addr);
+      break;
+    default:
+      throw new SocksError(`Invalid SocksAddrType: ${type}`);
+  }
+  return Buffer.concat([
+    Buffer.from([type]),
+    addrBuf
+  ]);
+}
 export function decodeSocksAddr(data: Buffer): SocksAddr {
   if (data.length < 2) {
     throw new SocksError("Invalid length for SocksAddr");
@@ -106,24 +142,6 @@ export function decodeSocksAddr(data: Buffer): SocksAddr {
   }
   return { type, addr };
 }
-export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
-  let addrBuf: Buffer;
-  switch (type) {
-    case SocksAddrType.IPv4:
-    case SocksAddrType.IPv6:
-      addrBuf = ip.toBuffer(addr);
-      break;
-    case SocksAddrType.Domain:
-      addrBuf = Buffer.from(addr);
-      break;
-    default:
-      throw new SocksError(`Invalid SocksAddrType: ${type}`);
-  }
-  return Buffer.concat([
-    Buffer.from([type]),
-    addrBuf
-  ]);
-}
 
 
 // Connection
@@ -138,6 +156,26 @@ export type ConnReq = {
   dstAddr: SocksAddr,
   dstPort: number
 }
+export function encodeConnReq({ cmd, dstAddr, dstPort }: ConnReq): Buffer {
+  if (
+    !(cmd in ConnCmd)
+      || dstPort < 0
+      || dstPort > 0xffff
+  ) {
+    throw new SocksError("Invalid ConnReq");
+  }
+  const dstPortBuf = Buffer.allocUnsafe(2);
+  dstPortBuf.writeUInt16BE(dstPort);
+  return Buffer.concat([
+    Buffer.from([
+      SOCKS_VERSION,
+      cmd,
+      0x00
+    ]),
+    encodeSocksAddr(dstAddr),
+    dstPortBuf
+  ]);
+}
 export function decodeConnReq(data: Buffer): ConnReq {
   if (
     data.length < 5 + 2
@@ -150,7 +188,7 @@ export function decodeConnReq(data: Buffer): ConnReq {
 
   const cmd = data[1];
   const dstAddr = decodeSocksAddr(data.subarray(3, data.length - 2));
-  const dstPort = data.readInt16BE(data.length - 2);
+  const dstPort = data.readUInt16BE(data.length - 2);
 
   return {
     cmd,
@@ -177,7 +215,7 @@ export type ConnResp = {
 } | {
   status: Exclude<ConnStatus, ConnStatus.SUCCESS>
 };
-export function encodeConnResp(resp: ConnResp) {
+export function encodeConnResp(resp: ConnResp): Buffer {
   const { status } = resp;
   let bndAddr: SocksAddr;
   let bndPort: number;
@@ -198,4 +236,23 @@ export function encodeConnResp(resp: ConnResp) {
     addrBuf,
     portBuf
   ]);
+}
+export function decodeConnResp(data: Buffer): ConnResp {
+  if (
+    data.length < 5 + 2
+      || data[0] !== SOCKS_VERSION
+      || data[2] !== 0x00
+  ) {
+    throw new SocksError("Invalid ConnResp");
+  }
+
+  const status = data[1];
+  const bndAddr = decodeSocksAddr(data.subarray(3, data.length - 2));
+  const bndPort = data.readUInt16BE(data.length - 2);
+
+  return {
+    status,
+    bndAddr,
+    bndPort
+  };
 }
