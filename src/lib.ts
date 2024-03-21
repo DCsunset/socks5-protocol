@@ -15,8 +15,7 @@
  * limitations under the License.
  */
 
-import { stat } from "fs";
-import ip, { isV4Format } from "ip";
+import ip from "ip";
 
 const SOCKS_VERSION = 0x05;
 
