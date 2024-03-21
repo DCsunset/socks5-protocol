@@ -152,37 +152,51 @@ export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
   ]);
 }
 
-/// Note: extra buffer won't be consumed
-export function decodeSocksAddr(buf: Buffer): SocksAddr {
-  if (buf.length < 2) {
+/**
+ * Note: extra buffer won't be consumed
+ *
+ * offset is used for performance (without copying the buffer)
+ */
+export function decodeSocksAddr(buf: Buffer, offset = 0): SocksAddr {
+  if (buf.length < offset + 2) {
     throw new SocksError("Invalid SocksAddr buffer");
   }
-  const type = buf[0];
+  const type = buf[offset];
   let addr: string;
   switch (type) {
     case SocksAddrType.IPv4:
-      if (buf.length < 5) {
+      if (buf.length < offset + 5) {
         throw new SocksError("Invalid SocksAddr buffer");
       }
-      addr = ip.toString(buf, 1);
+      addr = ip.toString(buf, offset + 1);
       break;
     case SocksAddrType.IPv6:
-      if (buf.length < 17) {
+      if (buf.length < offset + 17) {
         throw new SocksError("Invalid length for SocksAddr");
       }
-      addr = ip.toString(buf, 1);
+      addr = ip.toString(buf, offset + 1);
       break;
     case SocksAddrType.Domain:
       const len = buf[1];
-      if (buf.length < len + 2) {
+      if (buf.length < offset + len + 2) {
         throw new SocksError("Invalid SocksAddr buffer");
       }
-      addr = buf.subarray(2, len + 2).toString();
+      addr = buf.subarray(offset + 2, offset + len + 2).toString();
       break;
     default:
       throw new SocksError(`Invalid type for SocksAddr buffer: ${type}`);
   }
   return { type, addr };
+}
+
+export function decodeSocksAddrPort(buf: Buffer, offset = 0): [SocksAddr, number] {
+  const addr = decodeSocksAddr(buf, offset);
+  const addrSize = sizeofSocksAddr(addr);
+  if (buf.length < offset + addrSize + 2) {
+    throw new SocksError("Invalid SocksAddr or Port");
+  }
+  const port = buf.readUInt16BE(offset + addrSize);
+  return [addr, port];
 }
 
 
@@ -226,8 +240,7 @@ export function decodeConnReq(buf: Buffer): ConnReq {
   }
 
   const cmd = buf[1];
-  const dstAddr = decodeSocksAddr(buf.subarray(3, buf.length - 2));
-  const dstPort = buf.readUInt16BE(buf.length - 2);
+  const [dstAddr, dstPort] = decodeSocksAddrPort(buf, 3);
 
   return {
     cmd,
@@ -290,8 +303,7 @@ export function decodeConnResp(buf: Buffer): ConnResp {
   }
 
   const status = buf[1];
-  const bndAddr = decodeSocksAddr(buf.subarray(3, buf.length - 2));
-  const bndPort = buf.readUInt16BE(buf.length - 2);
+  const [bndAddr, bndPort] = decodeSocksAddrPort(buf, 3);
 
   return {
     status,
@@ -336,12 +348,8 @@ export function decodeUdpReq(buf: Buffer): UdpReq {
   }
 
   const frag = buf[2];
-  const dstAddr = decodeSocksAddr(buf.subarray(3));
+  const [dstAddr, dstPort] = decodeSocksAddrPort(buf, 3);
   const dstAddrSize = sizeofSocksAddr(dstAddr);
-  if (buf.length < 3 + dstAddrSize + 2) {
-    throw new SocksError("Invalid UdpReq buffer");
-  }
-  const dstPort = buf.readUInt16BE(3 + dstAddrSize);
   const data = buf.subarray(3 + dstAddrSize + 2);
 
   return {
