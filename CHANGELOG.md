@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.2](https://github.com/DCsunset/socks5-protocol/compare/v0.2.1...v0.2.2) (2024-03-23)
+
+
+### Bug Fixes
+
+* fix domain encoding for socks addr ([6443ec0](https://github.com/DCsunset/socks5-protocol/commit/6443ec00e8764f3f5b09069a0321ec5beaee40d3))
+* set custom name for SocksError class ([42e822f](https://github.com/DCsunset/socks5-protocol/commit/42e822f270702d91ad6ed874e8f3ffb44556c6a2))
+
 ## [0.2.1](https://github.com/DCsunset/socks5-protocol/compare/v0.2.0...v0.2.1) (2024-03-21)
 
 
