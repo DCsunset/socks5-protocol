@@ -1,6 +1,6 @@
 {
   "name": "socks5-protocol",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A Node.js library (in TypeScript and ESM) to encode/decode messages in SOCKS5 protocol.",
   "main": "dist/lib.js",
   "type": "module",
