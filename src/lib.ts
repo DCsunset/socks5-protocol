@@ -26,6 +26,7 @@ export function isValidUInt(num: number, max: number): boolean {
 export class SocksError extends Error {
   constructor(msg: string) {
     super(msg);
+    this.name = "SocksError";
   }
 }
 
