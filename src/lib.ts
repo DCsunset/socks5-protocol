@@ -149,7 +149,13 @@ export function encodeSocksAddr({ type, addr }: SocksAddr): Buffer {
       addrBuf = Buffer.from(ipaddr.IPv6.parse(addr).toByteArray());
       break;
     case SocksAddrType.Domain:
-      addrBuf = Buffer.from(addr);
+      if (addr.length > 0xff) {
+        throw new SocksError(`Domain too long for SocksAddr`);
+      }
+      addrBuf = Buffer.concat([
+        Buffer.from([addr.length]),
+        Buffer.from(addr)
+      ]);
       break;
     default:
       throw new SocksError(`Invalid type for SocksAddr: ${type}`);
