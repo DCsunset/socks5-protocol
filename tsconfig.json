@@ -9,5 +9,6 @@
     "outDir": "./dist",
 		"declaration": true
   },
-  "lib": ["esnext"]
+  "lib": ["esnext"],
+  "include": ["src/**/*"]
 }

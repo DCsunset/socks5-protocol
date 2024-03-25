@@ -11,6 +11,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "test": "vitest",
     "build": "rm -rf dist && tsc"
   },
   "repository": {
@@ -32,7 +33,8 @@
   "homepage": "https://github.com/DCsunset/socks5-protocol",
   "devDependencies": {
     "@types/node": "^20.11.30",
-    "typescript": "^5.4.2"
+    "typescript": "^5.4.2",
+    "vitest": "^1.4.0"
   },
   "dependencies": {
     "ipaddr.js": "^2.1.0"
