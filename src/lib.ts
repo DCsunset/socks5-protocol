@@ -192,7 +192,7 @@ export function decodeSocksAddr(buf: Buffer, offset = 0): SocksAddr {
       addr = ipaddr.fromByteArray([...buf.subarray(offset + 1, offset + 17)]).toString();
       break;
     case SocksAddrType.Domain:
-      const len = buf[1];
+      const len = buf[offset + 1];
       if (buf.length < offset + len + 2) {
         throw new SocksError("Invalid SocksAddr buffer");
       }
