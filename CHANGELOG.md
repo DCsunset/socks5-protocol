@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.4](https://github.com/DCsunset/socks5-protocol/compare/v0.2.3...v0.2.4) (2024-03-25)
+
+
+### Bug Fixes
+
+* fix buffer offset when decoding SocksAddr ([959210a](https://github.com/DCsunset/socks5-protocol/commit/959210a19368e60616a320b37fd8880fee02a8b2))
+
+
+### Misc
+
+* add unit tests ([7d396c2](https://github.com/DCsunset/socks5-protocol/commit/7d396c289a92de035b5dc8796b99e252c6749717))
+
 ## [0.2.3](https://github.com/DCsunset/socks5-protocol/compare/v0.2.2...v0.2.3) (2024-03-23)
 
 
